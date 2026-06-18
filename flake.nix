@@ -65,10 +65,16 @@
           config = {
             User = "1000:1000";
             WorkingDir = "/app";
+            # NODE_EXTRA_CA_CERTS (set on the Deployment to the ServiceAccount
+            # CA) is appended to this default bundle, so the runtime trusts BOTH
+            # api.github.com (public CA, here) and the k3s API server (the
+            # cluster's self-signed CA). We deliberately do NOT set
+            # SSL_CERT_FILE: it REPLACES the trust store, which would drop the
+            # public roots and break the GitHub TLS handshake.
             Env = [
               "NODE_ENV=production"
               "PORT=8080"
-              "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+              "NODE_EXTRA_CA_CERTS=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
             ];
             ExposedPorts."8080/tcp" = { };
             Cmd = [
