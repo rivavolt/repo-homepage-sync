@@ -50,7 +50,7 @@ spec:
             # image's public CA bundle) so the k8s client's TLS validates while
             # github.com TLS still works.
             - { name: NODE_EXTRA_CA_CERTS, value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt }
-            # GitHub App auth, minted in-cluster from the rivavolt-ci App. The
+            # GitHub App auth, minted in-cluster from the dedicated rivavolt-homepage-sync App. The
             # id + installation id + private key are projected from the
             # SopsSecret below (same App key the cluster already uses for repo
             # writes via email2pr/renovate).

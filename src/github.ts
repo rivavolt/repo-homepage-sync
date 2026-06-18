@@ -5,7 +5,7 @@ import type { RepoRef } from "./derive.ts";
 import { shouldUpdate } from "./derive.ts";
 import { log } from "./log.ts";
 
-// GitHub App auth, minted in-cluster from the rivavolt-ci App (the App key +
+// GitHub App auth, minted in-cluster from the dedicated rivavolt-homepage-sync App (the App key +
 // installation id are projected from the cluster sops store, mirroring
 // email2pr / renovate). Octokit's app auth strategy mints and caches a ~1h
 // installation token and refreshes it transparently, so we never deal with
@@ -83,7 +83,7 @@ export async function reconcileHomepage(
     if (e?.status === 403) {
       administrationDenied = true;
       log.error(
-        `403 from PATCH /repos/${owner}/${repo} (homepage). The rivavolt-ci ` +
+        `403 from PATCH /repos/${owner}/${repo} (homepage). The rivavolt-homepage-sync ` +
           `App is missing the 'Repository administration: write' permission ` +
           `required to edit repo metadata. Grant it on the App and ACCEPT the ` +
           `pending org-install permission request, then restart this ` +

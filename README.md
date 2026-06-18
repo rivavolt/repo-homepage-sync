@@ -32,10 +32,10 @@ Application**'s `spec.source.repoURL`. This controller joins the two reactively.
 
 ## Auth
 
-GitHub auth is minted in-cluster from the **rivavolt-ci** GitHub App (id +
+GitHub auth is minted in-cluster from the dedicated **rivavolt-homepage-sync** GitHub App (id +
 installation id + private key projected from the cluster sops store via the
-`repo-homepage-sync-secrets` SopsSecret — the same App key the cluster already
-uses for repo writes). Octokit's app-auth strategy mints and refreshes ~1h
+`repo-homepage-sync-secrets` SopsSecret — a dedicated App scoped to only
+**Repository administration: write** rather than reusing a broader CI App). Octokit's app-auth strategy mints and refreshes ~1h
 installation tokens automatically.
 
 Editing a repo's homepage requires the App's **Repository administration:
