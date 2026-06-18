@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: repo-homepage-sync-tailnet
+  namespace: repo-homepage-sync
+  annotations:
+    # Tailnet-only ops surface (health + /stats showing whether the GitHub App
+    # permission is currently denied). Bound exclusively to traefik's tailsecure
+    # entrypoint so it is NOT reachable on the public web/websecure entrypoints
+    # — same pattern as webhook-gateway-tailnet. This controller has no public
+    # door at all; it only reacts to in-cluster Ingresses and calls GitHub
+    # outbound.
+    traefik.ingress.kubernetes.io/router.entrypoints: tailsecure
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: repo-homepage-sync.volt.tail.avolt.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: repo-homepage-sync
+                port: { number: 80 }
+  tls:
+    - hosts:
+        - repo-homepage-sync.volt.tail.avolt.net
+      secretName: wildcard-tail-avolt-net-tls

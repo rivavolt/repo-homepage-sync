@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: repo-homepage-sync
+  namespace: repo-homepage-sync
+  labels:
+    app.kubernetes.io/name: repo-homepage-sync
+    app.kubernetes.io/component: controller
+spec:
+  # Single replica — this is a singleton controller (a second replica would
+  # just duplicate identical idempotent GitHub PATCHes). Recreate so the
+  # informer never runs doubled during a rollout.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: repo-homepage-sync }
+  template:
+    metadata:
+      labels:
+        app: repo-homepage-sync
+        app.kubernetes.io/name: repo-homepage-sync
+        app.kubernetes.io/component: controller
+    spec:
+      serviceAccountName: repo-homepage-sync
+      nodeSelector:
+        kubernetes.io/hostname: volt
+      imagePullSecrets:
+        - name: ghcr-pull
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: controller
+          # renovate: datasource=docker depName=ghcr.io/rivavolt/repo-homepage-sync versioning=loose
+          image: ghcr.io/rivavolt/repo-homepage-sync:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - { name: PORT, value: "8080" }
+            # GitHub App auth, minted in-cluster from the rivavolt-ci App. The
+            # id + installation id + private key are projected from the
+            # SopsSecret below (same App key the cluster already uses for repo
+            # writes via email2pr/renovate).
+            - name: GH_APP_ID
+              valueFrom:
+                secretKeyRef: { name: repo-homepage-sync-secrets, key: github-app-id }
+            - name: GH_APP_INSTALLATION_ID
+              valueFrom:
+                secretKeyRef: { name: repo-homepage-sync-secrets, key: github-app-installation-id }
+            - { name: GH_APP_PRIVATE_KEY_FILE, value: /secrets/github-app-private-key.pem }
+          resources:
+            requests: { cpu: 20m, memory: 64Mi }
+            limits:   { cpu: 200m, memory: 192Mi }
+          volumeMounts:
+            - { name: secrets, mountPath: /secrets, readOnly: true }
+          readinessProbe:
+            httpGet: { path: /readyz, port: 8080 }
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+      volumes:
+        - { name: secrets, secret: { secretName: repo-homepage-sync-secrets } }

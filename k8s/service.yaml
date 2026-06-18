@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: repo-homepage-sync
+  namespace: repo-homepage-sync
+spec:
+  selector: { app: repo-homepage-sync }
+  ports:
+    - { name: http, port: 80, targetPort: 8080 }

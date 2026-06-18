@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.direnv/
+result
+result-*
+k8s/secrets/*.dec.yaml

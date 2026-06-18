@@ -1,0 +1,89 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: avolt
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3"
+      - run: bun install --frozen-lockfile
+      - run: bun x tsc --noEmit
+      - run: bun test
+
+  image:
+    # avolt ARC scale set: warm /nix + attic cache + tailnet, so the nix build
+    # substitutes the host closure instead of compiling cold. skopeo streams the
+    # streamLayeredImage tar straight to GHCR over the registry API — no docker
+    # daemon. Same shape as webhook-gateway.
+    runs-on: avolt
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      tags: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3"
+      # Unlike webhook-gateway, this controller has prod npm deps (k8s client +
+      # octokit), so the image input is a single bundled JS file produced here
+      # (bun install + bun build) before nix packages ./dist/main.js. Keeping the
+      # bundle in CI avoids vendoring node_modules into the nix store.
+      - name: Bundle app
+        run: |
+          bun install --frozen-lockfile
+          bun build src/main.ts --target=bun --outfile=dist/main.js
+      - name: Build OCI image with Nix
+        run: nix build .#image
+      - name: Compute image + tags
+        id: meta
+        run: |
+          set -euo pipefail
+          tags="sha-$(git rev-parse --short HEAD)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            tags="$tags pr-${{ github.event.pull_request.number }}"
+          fi
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            tags="$tags latest"
+          fi
+          {
+            echo "image=ghcr.io/${{ github.repository_owner }}/repo-homepage-sync"
+            echo "tags=$tags"
+          } >> "$GITHUB_OUTPUT"
+      - name: Push to GHCR with skopeo
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DEST_CREDS: ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          skopeo=(nix run nixpkgs#skopeo --)
+          ./result > /tmp/image.tar
+          for tag in $TAGS; do
+            "${skopeo[@]}" --insecure-policy copy --retry-times 3 \
+              --dest-creds "$DEST_CREDS" \
+              docker-archive:/tmp/image.tar "docker://$IMAGE:$tag"
+          done
+
+  mirror:
+    runs-on: avolt
+    needs: image
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: rivavolt/ci/actions/image-mirror@v1
+        with:
+          image: ${{ needs.image.outputs.image }}
+          tags: ${{ needs.image.outputs.tags }}

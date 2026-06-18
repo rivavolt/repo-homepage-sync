@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Kustomize entrypoint for repo-homepage-sync. Single deployment target (no
+# overlays). Image bumps come from Renovate PRs against the images: block.
+
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - service.yaml
+  - ingress-tailnet.yaml
+  - deployment.yaml
+  - secrets/repo-homepage-sync.sops.yaml
+
+images:
+  # renovate: datasource=docker depName=ghcr.io/rivavolt/repo-homepage-sync
+  - name: ghcr.io/rivavolt/repo-homepage-sync
+    newTag: latest
