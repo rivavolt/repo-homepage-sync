@@ -85,7 +85,11 @@ async function startInformer() {
   informer.on("delete", (o) => schedule(`ingress delete ${o.metadata?.namespace}/${o.metadata?.name}`));
   informer.on("error", (e: any) => {
     log.warn(`informer error, will resync: ${e?.message ?? e}`);
-    setTimeout(() => informer.start(), 5000);
+    setTimeout(() => {
+      void informer.start().catch((err: any) =>
+        log.warn(`informer restart failed, will retry on next resync: ${err?.message ?? err}`),
+      );
+    }, 5000);
   });
   await informer.start();
   log.info("ingress informer started");
@@ -109,15 +113,35 @@ function startHealth() {
   log.info(`health server on :${PORT}`);
 }
 
+// Bun exits 1 on an unhandled promise rejection by default. The k8s informer's
+// long-lived watch throws "operation timed out" (a DOMException) on Bun when the
+// watch connection lapses (~every 6 min), and that rejection escaped the
+// informer's own error handling — crash-looping the pod ~240×/day. The
+// controller is stateless (every reconcile re-derives state from the live
+// cluster + GitHub) and the periodic resync recovers anything missed, so log
+// transient async failures and keep running instead of dying.
+process.on("unhandledRejection", (reason: any) => {
+  log.error(`unhandledRejection (continuing): ${reason?.message ?? reason}`);
+});
+process.on("uncaughtException", (err: any) => {
+  log.error(`uncaughtException (continuing): ${err?.message ?? err}`);
+});
+
 async function main() {
   log.info("repo-homepage-sync starting");
   startHealth();
-  await reconcileAll("startup");
-  await startInformer();
-  // Periodic full resync: catches Application/repoURL changes (the informer
-  // only watches Ingresses) and re-arms the permission backoff so a freshly
-  // granted administration:write is picked up without a redeploy.
+  // Resync timer set up before the informer so reconciliation keeps working
+  // even if the informer's initial start is slow/flaky. Catches
+  // Application/repoURL changes (the informer only watches Ingresses) and
+  // re-arms the permission backoff so a freshly granted administration:write is
+  // picked up without a redeploy.
   setInterval(() => void reconcileAll("periodic resync"), RESYNC_MS);
+  await reconcileAll("startup");
+  // Fire-and-forget: a failed informer start must not abort main() and skip the
+  // resync above; it self-retries via its own error handler.
+  void startInformer().catch((e: any) =>
+    log.warn(`informer setup failed, relying on periodic resync: ${e?.message ?? e}`),
+  );
 }
 
 void main();
