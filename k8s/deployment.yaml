@@ -35,7 +35,7 @@ spec:
       containers:
         - name: controller
           # renovate: datasource=docker depName=ghcr.io/rivavolt/repo-homepage-sync versioning=loose
-          image: ghcr.io/rivavolt/repo-homepage-sync:sha-fd3343d
+          image: ghcr.io/rivavolt/repo-homepage-sync:sha-6db1863
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false

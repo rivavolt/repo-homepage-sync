@@ -14,4 +14,4 @@ resources:
 images:
   # renovate: datasource=docker depName=ghcr.io/rivavolt/repo-homepage-sync
   - name: ghcr.io/rivavolt/repo-homepage-sync
-    newTag: sha-fd3343d
+    newTag: sha-6db1863
